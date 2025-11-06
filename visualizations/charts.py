@@ -16,7 +16,7 @@ class ChartFactory:
     """Factory for creating Plotly charts."""
     
     @staticmethod
-    def create_timing_breakdown_chart(df: pd.DataFrame):
+    def create_timing_breakdown_chart(df: pd.DataFrame,  key: str = None):
         """Create timing breakdown bar chart."""
         avg_timings = df[TIMING_PHASES].mean()
         
@@ -30,10 +30,10 @@ class ChartFactory:
         )
         
         fig.update_layout(showlegend=False)
-        return fig
+        return fig, key or "timing_breakdown"
     
     @staticmethod
-    def create_response_time_histogram(df: pd.DataFrame):
+    def create_response_time_histogram(df: pd.DataFrame, key: str = None):
         """Create response time distribution histogram."""
         fig = px.histogram(
             df,
@@ -54,10 +54,10 @@ class ChartFactory:
             annotation_text="1000ms threshold"
         )
         
-        return fig
+        return fig, key or "response_time_histogram"
     
     @staticmethod
-    def create_status_code_chart(df: pd.DataFrame):
+    def create_status_code_chart(df: pd.DataFrame, key: str = None):
         """Create status code distribution pie chart."""
         status_counts = df['status'].value_counts().reset_index()
         status_counts.columns = ['status', 'count']
@@ -80,10 +80,10 @@ class ChartFactory:
             color_discrete_sequence=colors
         )
         
-        return fig
+        return fig, key or "status_code_chart"
     
     @staticmethod
-    def create_slowest_endpoints_chart(df: pd.DataFrame, limit: int = 10):
+    def create_slowest_endpoints_chart(df: pd.DataFrame, limit: int = 10, key: str = None):
         """Create chart showing slowest endpoints."""
         endpoint_stats = df.groupby('endpoint').agg({
             'total_time': ['mean', 'count']
@@ -112,4 +112,4 @@ class ChartFactory:
         )
         
         fig.update_layout(yaxis={'categoryorder': 'total ascending'})
-        return fig
+        return fig, key or "slowest_endpoints_chart"

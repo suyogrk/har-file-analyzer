@@ -1,4 +1,3 @@
-# ui/tabs.py - Tab content components
 
 import streamlit as st
 import pandas as pd
@@ -19,18 +18,18 @@ class TabManager:
         col1, col2 = st.columns(2)
         
         with col1:
-            fig_hist = ChartFactory.create_response_time_histogram(df)
-            st.plotly_chart(fig_hist, use_container_width=True)
+            fig_hist, key_hist = ChartFactory.create_response_time_histogram(df, key="overview_histogram")
+            st.plotly_chart(fig_hist, use_container_width=True, key=key_hist)
             
-            fig_status = ChartFactory.create_status_code_chart(df)
-            st.plotly_chart(fig_status, use_container_width=True)
+            fig_status, key_status = ChartFactory.create_status_code_chart(df, key="overview_status")
+            st.plotly_chart(fig_status, use_container_width=True, key=key_status)
         
         with col2:
-            fig_timing = ChartFactory.create_timing_breakdown_chart(df)
-            st.plotly_chart(fig_timing, use_container_width=True)
+            fig_timing, key_timing = ChartFactory.create_timing_breakdown_chart(df, key="overview_timing")
+            st.plotly_chart(fig_timing, use_container_width=True, key=key_timing)
             
-            fig_endpoints = ChartFactory.create_slowest_endpoints_chart(df)
-            st.plotly_chart(fig_endpoints, use_container_width=True)
+            fig_endpoints, key_endpoints = ChartFactory.create_slowest_endpoints_chart(df, key="overview_endpoints")
+            st.plotly_chart(fig_endpoints, use_container_width=True, key=key_endpoints)
     
     @staticmethod
     def render_requests_tab(df: pd.DataFrame):
@@ -87,9 +86,9 @@ class TabManager:
         
         st.markdown("---")
         
-        # Show timing breakdown chart
-        fig_timing = ChartFactory.create_timing_breakdown_chart(df)
-        st.plotly_chart(fig_timing, use_container_width=True)
+        # Show timing breakdown chart with unique key
+        fig_timing, key_timing = ChartFactory.create_timing_breakdown_chart(df, key="timing_analysis_breakdown")
+        st.plotly_chart(fig_timing, use_container_width=True, key=key_timing)
         
         # Show average timing by endpoint
         st.subheader("Average Timing by Endpoint")
@@ -112,8 +111,10 @@ class TabManager:
             hide_index=True
         )
         
-        # Show chart
-        st.plotly_chart(
-            ChartFactory.create_slowest_endpoints_chart(df, limit=20),
-            use_container_width=True
+        # Show chart with unique key for endpoint tab
+        fig_endpoints, key_endpoints = ChartFactory.create_slowest_endpoints_chart(
+            df, 
+            limit=20, 
+            key="endpoint_tab_slowest"
         )
+        st.plotly_chart(fig_endpoints, use_container_width=True, key=key_endpoints)

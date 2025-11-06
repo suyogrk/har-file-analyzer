@@ -14,7 +14,7 @@ def main():
     st.set_page_config(**PAGE_CONFIG)
     
     # Title and description
-    st.title("🔍 HAR File API Performance Analyzer")
+    st.title("🔍 HAR File Performance Analyzer")
     st.markdown("""
         Upload your HAR (HTTP Archive) file to analyze API performance, identify problematic endpoints,
         and get detailed timing breakdowns for all network requests.
