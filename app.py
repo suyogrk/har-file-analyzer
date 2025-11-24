@@ -5,9 +5,11 @@ import hashlib
 from config import PAGE_CONFIG
 from parsers.har_parser import HARParser
 from analyzers.performance_analyzer import PerformanceAnalyzer
+from analyzers.performance_benchmarking import PerformanceBenchmarking
 from ui.metrics import MetricsDisplay
 from ui.tabs import TabManager
 from utils.validators import validate_file_size, validate_har_content
+from visualizations.charts import ChartFactory
 
 
 @st.cache_data(show_spinner=False)
@@ -38,6 +40,21 @@ def analyze_performance(df_hash: str, df):
         DataFrame with analysis results
     """
     return PerformanceAnalyzer.identify_problematic_apis(df)
+
+
+@st.cache_data(show_spinner=False)
+def calculate_performance_score(df_hash: str, df):
+    """
+    Calculate performance score with caching.
+    
+    Args:
+        df_hash: Hash for cache invalidation
+        df: DataFrame to analyze
+        
+    Returns:
+        Performance score dictionary
+    """
+    return PerformanceBenchmarking.calculate_performance_score(df)
 
 
 def main():
@@ -94,35 +111,70 @@ def main():
             df_hash = hashlib.md5(str(df.shape).encode()).hexdigest()
             df = analyze_performance(df_hash, df)
             
-            # Main metrics
+            # Calculate performance score (cached)
+            perf_score = calculate_performance_score(df_hash, df)
+            
+            # Main metrics with performance score
             st.header("📊 Overview Metrics")
-            MetricsDisplay.render_overview_metrics(df)
+            
+            # Performance score gauge
+            col1, col2 = st.columns([1, 3])
+            
+            with col1:
+                fig_gauge, key_gauge = ChartFactory.create_performance_score_gauge(
+                    perf_score['score'],
+                    perf_score['grade'],
+                    key="performance_score_gauge"
+                )
+                if fig_gauge:
+                    st.plotly_chart(fig_gauge, use_container_width=True, key=key_gauge)
+                
+                st.markdown(f"**{perf_score['summary']}**")
+            
+            with col2:
+                MetricsDisplay.render_overview_metrics(df)
             
             st.markdown("---")
             
             # Tabs for different views
-            tab1, tab2, tab3, tab4, tab5 = st.tabs([
+            tabs = st.tabs([
                 "📈 Overview",
                 "📋 All Requests",
                 "⚠️ Problematic APIs",
                 "⏱️ Timing Analysis",
-                "🎯 Endpoint Summary"
+                "🎯 Endpoint Summary",
+                "🌐 Domain Analysis",
+                "💡 Recommendations",
+                "📦 Resource Analysis",
+                "📊 Advanced Stats"
             ])
             
-            with tab1:
+            with tabs[0]:
                 TabManager.render_overview_tab(df)
             
-            with tab2:
+            with tabs[1]:
                 TabManager.render_requests_tab(df)
             
-            with tab3:
+            with tabs[2]:
                 TabManager.render_problematic_tab(df)
             
-            with tab4:
+            with tabs[3]:
                 TabManager.render_timing_tab(df)
             
-            with tab5:
+            with tabs[4]:
                 TabManager.render_endpoint_tab(df)
+            
+            with tabs[5]:
+                TabManager.render_domain_analysis_tab(df)
+            
+            with tabs[6]:
+                TabManager.render_recommendations_tab(df)
+            
+            with tabs[7]:
+                TabManager.render_resource_analysis_tab(df)
+            
+            with tabs[8]:
+                TabManager.render_advanced_stats_tab(df)
 
 
 if __name__ == "__main__":
