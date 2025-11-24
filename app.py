@@ -146,7 +146,10 @@ def main():
                 "🌐 Domain Analysis",
                 "💡 Recommendations",
                 "📦 Resource Analysis",
-                "📊 Advanced Stats"
+                "📊 Advanced Stats",
+                "💾 Caching Analysis",
+                "🔒 Security Analysis",
+                "📊 Performance Budget"
             ])
             
             with tabs[0]:
@@ -175,6 +178,15 @@ def main():
             
             with tabs[8]:
                 TabManager.render_advanced_stats_tab(df)
+            
+            with tabs[9]:
+                TabManager.render_caching_analysis_tab(df)
+            
+            with tabs[10]:
+                TabManager.render_security_analysis_tab(df)
+            
+            with tabs[11]:
+                TabManager.render_performance_budget_tab(df)
 
 
 if __name__ == "__main__":
