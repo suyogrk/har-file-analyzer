@@ -563,3 +563,529 @@ class TabManager:
                 'max_css_size_kb': budget_tracker.budget.max_css_size_kb,
                 'max_image_size_kb': budget_tracker.budget.max_image_size_kb
             })
+    
+    @staticmethod
+    def render_waterfall_tab(df: pd.DataFrame):
+        """Render the Waterfall Visualization tab."""
+        from visualizations.waterfall import WaterfallChart
+        
+        st.subheader("📈 Request Waterfall Timeline")
+        
+        # Request pattern analysis
+        patterns = WaterfallChart.analyze_request_patterns(df)
+        
+        if patterns['analysis_available']:
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("Total Requests", patterns['total_requests'])
+            with col2:
+                st.metric("Parallel Requests", patterns['parallel_requests'])
+            with col3:
+                st.metric("Sequential Requests", patterns['sequential_requests'])
+            with col4:
+                st.metric("Parallelization", f"{patterns['parallelization_ratio']:.1f}%")
+            
+            st.markdown("---")
+        
+        # Waterfall chart options
+        chart_type = st.radio(
+            "Chart Type",
+            ["Detailed (Timing Phases)", "Simplified (Total Time)"],
+            horizontal=True
+        )
+        
+        max_requests = st.slider(
+            "Maximum Requests to Display",
+            min_value=10,
+            max_value=min(200, len(df)),
+            value=min(50, len(df)),
+            step=10,
+            help="Limit requests for better performance"
+        )
+        
+        st.markdown("---")
+        
+        # Create waterfall chart
+        if chart_type == "Detailed (Timing Phases)":
+            fig, key = WaterfallChart.create_waterfall(df, max_requests=max_requests)
+        else:
+            fig, key = WaterfallChart.create_simplified_waterfall(df, max_requests=max_requests)
+        
+        if fig:
+            st.plotly_chart(fig, use_container_width=True, key=key)
+        else:
+            st.warning("Unable to generate waterfall chart")
+        
+        st.markdown("---")
+        
+        # Critical path
+        st.subheader("🎯 Critical Path (Slowest Requests)")
+        critical_path = WaterfallChart.identify_critical_path(df)
+        
+        if critical_path:
+            for i, req in enumerate(critical_path, 1):
+                st.write(f"**{i}.** {req['endpoint'][:60]} - {req['total_time']:.1f}ms (Status: {req['status']})")
+        else:
+            st.info("No critical path data available")
+    
+    @staticmethod
+    def render_comparative_analysis_tab(df: pd.DataFrame):
+        """Render the Comparative Analysis tab."""
+        from analyzers.comparative_analyzer import ComparativeAnalyzer
+        
+        st.subheader("📊 Comparative Analysis")
+        
+        st.info("💡 **How to use:** Upload a second HAR file to compare with the current one. This is useful for before/after optimization analysis.")
+        
+        # File uploader for second HAR file
+        st.markdown("### Upload Second HAR File for Comparison")
+        
+        comparison_file = st.file_uploader(
+            "Choose a second HAR file to compare",
+            type=['har'],
+            help="Upload another HAR file to compare performance metrics",
+            key="comparison_file_uploader"
+        )
+        
+        if comparison_file is not None:
+            # Parse the comparison file
+            from parsers.har_parser import HARParser
+            
+            comparison_content = comparison_file.read().decode('utf-8')
+            df2, error = HARParser.parse(comparison_content)
+            
+            if error:
+                st.error(f"❌ Error parsing comparison file: {error}")
+                return
+            
+            if df2 is None or df2.empty:
+                st.error("❌ Comparison file is empty or invalid")
+                return
+            
+            # Perform comparison
+            st.success("✅ Comparison file loaded successfully!")
+            
+            # Get labels from user
+            col1, col2 = st.columns(2)
+            with col1:
+                label1 = st.text_input("Label for Current File", value="Current", key="label1")
+            with col2:
+                label2 = st.text_input("Label for Comparison File", value="Comparison", key="label2")
+            
+            st.markdown("---")
+            
+            # Perform comparison
+            comparison = ComparativeAnalyzer.compare_har_files(df, df2, label1, label2)
+            
+            # Display summary
+            st.subheader("📋 Comparison Summary")
+            
+            summary = ComparativeAnalyzer.generate_comparison_summary(comparison)
+            for item in summary:
+                if "✅" in item:
+                    st.success(item)
+                elif "⚠️" in item:
+                    st.warning(item)
+                else:
+                    st.info(item)
+            
+            st.markdown("---")
+            
+            # Performance scores
+            st.subheader("🎯 Performance Scores")
+            
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                score1 = comparison['scores'][label1]
+                st.metric(
+                    f"{label1} Score",
+                    f"{score1['score']}/100",
+                    delta=None
+                )
+                st.caption(f"Grade: {score1['grade']}")
+            
+            with col2:
+                score2 = comparison['scores'][label2]
+                st.metric(
+                    f"{label2} Score",
+                    f"{score2['score']}/100",
+                    delta=None
+                )
+                st.caption(f"Grade: {score2['grade']}")
+            
+            with col3:
+                delta = comparison['score_delta']
+                improvement = comparison['improvement']
+                st.metric(
+                    "Score Change",
+                    f"{delta:+.0f}",
+                    delta=f"{delta:+.0f} points",
+                    delta_color="normal" if improvement else "inverse"
+                )
+                st.caption("✅ Improved" if improvement else "⚠️ Degraded")
+            
+            st.markdown("---")
+            
+            # Detailed metrics comparison
+            st.subheader("📊 Detailed Metrics Comparison")
+            
+            comparison_df = ComparativeAnalyzer.create_comparison_dataframe(comparison)
+            st.dataframe(comparison_df, width='stretch', hide_index=True)
+            
+            st.markdown("---")
+            
+            # Endpoint-level comparison
+            st.subheader("🎯 Endpoint-Level Comparison")
+            
+            endpoint_comparison = ComparativeAnalyzer.compare_endpoints(df, df2)
+            
+            if not endpoint_comparison.empty:
+                # Show top improved endpoints
+                improved = endpoint_comparison[endpoint_comparison['improved']].head(10)
+                if not improved.empty:
+                    st.markdown("#### ✅ Top 10 Improved Endpoints")
+                    st.dataframe(improved, width='stretch', hide_index=True)
+                
+                st.markdown("---")
+                
+                # Show top degraded endpoints
+                degraded = endpoint_comparison[~endpoint_comparison['improved']].head(10)
+                if not degraded.empty:
+                    st.markdown("#### ⚠️ Top 10 Degraded Endpoints")
+                    st.dataframe(degraded, width='stretch', hide_index=True)
+            else:
+                st.info("No common endpoints found between the two HAR files")
+        
+        else:
+            st.info("👆 Upload a second HAR file above to start comparison")
+            
+            # Show example use cases
+            with st.expander("📖 Use Cases for Comparative Analysis"):
+                st.markdown("""
+                **Comparative analysis is useful for:**
+                
+                1. **Before/After Optimization**
+                   - Compare performance before and after implementing optimizations
+                   - Measure the impact of code changes
+                
+                2. **A/B Testing**
+                   - Compare different versions of your application
+                   - Validate performance improvements
+                
+                3. **Regression Detection**
+                   - Identify performance degradations
+                   - Track performance over time
+                
+                4. **Environment Comparison**
+                   - Compare production vs staging performance
+                   - Compare different deployment configurations
+                
+                5. **Feature Impact Analysis**
+                   - Measure performance impact of new features
+                   - Identify bottlenecks introduced by changes
+                """)
+    
+    @staticmethod
+    def render_connection_analysis_tab(df: pd.DataFrame):
+        """Render the Connection Analysis tab."""
+        from analyzers.connection_analyzer import ConnectionAnalyzer
+        
+        st.subheader("🔌 Connection Analysis")
+        
+        # Get connection analysis
+        analysis = ConnectionAnalyzer.analyze_connections(df)
+        
+        if not analysis['analysis_available']:
+            st.warning("Connection analysis not available for this HAR file")
+            return
+        
+        # Display metrics
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric("Total Requests", analysis['total_requests'])
+        with col2:
+            st.metric("New Connections", analysis['new_connections'])
+        with col3:
+            st.metric("Reused Connections", analysis['reused_connections'])
+        with col4:
+            reuse_color = "🟢" if analysis['connection_reuse_ratio'] >= 80 else "🟡" if analysis['connection_reuse_ratio'] >= 50 else "🔴"
+            st.metric("Reuse Ratio", f"{reuse_color} {analysis['connection_reuse_ratio']:.1f}%")
+        
+        st.markdown("---")
+        
+        # Connection timing
+        st.subheader("⏱️ Connection Timing")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric("Avg Connect Time", f"{analysis['avg_connect_time']:.1f}ms")
+        with col2:
+            st.metric("Avg SSL Time", f"{analysis['avg_ssl_time']:.1f}ms")
+        with col3:
+            st.metric("Connect Time %", f"{analysis['connect_time_percentage']:.1f}%")
+        
+        st.markdown("---")
+        
+        # Optimization opportunities
+        st.subheader("💡 Optimization Opportunities")
+        
+        opportunities = ConnectionAnalyzer.identify_connection_opportunities(df)
+        
+        if opportunities:
+            for opp in opportunities:
+                priority_icon = "🔴" if opp['priority'] == 'High' else "🟡"
+                
+                with st.expander(f"{priority_icon} **{opp['title']}** ({opp['category']})"):
+                    st.write(f"**Description:** {opp['description']}")
+                    st.write(f"**Impact:** {opp['impact']}")
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.metric("Current", opp['current_value'])
+                    with col2:
+                        st.metric("Target", opp['target_value'])
+        else:
+            st.success("✅ No connection optimization opportunities found - connections are well optimized!")
+        
+        st.markdown("---")
+        
+        # Connection breakdown by domain
+        st.subheader("🌐 Connection Breakdown by Domain")
+        
+        breakdown = ConnectionAnalyzer.get_connection_breakdown(df)
+        
+        if not breakdown.empty:
+            st.dataframe(breakdown, width='stretch', hide_index=True)
+        else:
+            st.info("No connection breakdown data available")
+        
+        st.markdown("---")
+        
+        # Best practices
+        with st.expander("📖 Connection Optimization Best Practices"):
+            st.markdown("""
+            **Connection Reuse Best Practices:**
+            
+            1. **Enable HTTP Keep-Alive**
+               - Allows multiple requests over a single connection
+               - Target: >80% connection reuse ratio
+            
+            2. **Use Connection Pooling**
+               - Reuse connections across requests
+               - Reduces connection setup overhead
+            
+            3. **Optimize SSL/TLS**
+               - Enable TLS session resumption
+               - Use OCSP stapling
+               - Target: <50ms SSL handshake time
+            
+            4. **Consider HTTP/2 or HTTP/3**
+               - Multiplexing reduces connection overhead
+               - Single connection for multiple requests
+               - Eliminates head-of-line blocking (HTTP/3)
+            
+            5. **Use CDN**
+               - Reduces geographic latency
+               - Improves connection times
+               - Target: <50ms connection time
+            
+            6. **Minimize New Connections**
+               - Consolidate resources from same domain
+               - Reduce number of third-party domains
+               - Target: <20% new connections
+            """)
+    
+    @staticmethod
+    def render_business_impact_tab(df: pd.DataFrame):
+        """Render the Business Impact Analysis tab."""
+        from analyzers.business_analyzer import BusinessAnalyzer
+        
+        st.subheader("💰 Business Impact Analysis")
+        
+        st.info("💡 **Note:** Revenue estimates are based on industry benchmarks. Adjust parameters below for your specific business.")
+        
+        # Configuration inputs
+        st.markdown("### Business Parameters")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            monthly_visitors = st.number_input(
+                "Monthly Visitors",
+                min_value=100,
+                max_value=10000000,
+                value=10000,
+                step=1000,
+                help="Average monthly website visitors"
+            )
+        
+        with col2:
+            avg_order_value = st.number_input(
+                "Average Order Value ($)",
+                min_value=1.0,
+                max_value=10000.0,
+                value=50.0,
+                step=5.0,
+                help="Average value per transaction"
+            )
+        
+        with col3:
+            baseline_conversion = st.number_input(
+                "Baseline Conversion Rate (%)",
+                min_value=0.1,
+                max_value=20.0,
+                value=2.0,
+                step=0.1,
+                help="Current conversion rate percentage"
+            ) / 100
+        
+        st.markdown("---")
+        
+        # User Experience Score
+        st.subheader("👤 User Experience Score")
+        
+        ux_score = BusinessAnalyzer.calculate_user_experience_score(df)
+        
+        col1, col2 = st.columns([1, 3])
+        
+        with col1:
+            score_color = "🟢" if ux_score['score'] >= 80 else "🟡" if ux_score['score'] >= 60 else "🔴"
+            st.metric("UX Score", f"{score_color} {ux_score['score']}/100")
+            st.metric("Grade", ux_score['grade'])
+        
+        with col2:
+            col_a, col_b, col_c, col_d = st.columns(4)
+            with col_a:
+                st.metric("Avg Load Time", f"{ux_score['avg_load_time']:.0f}ms")
+            with col_b:
+                st.metric("Consistency (CV)", f"{ux_score['consistency_cv']:.2f}")
+            with col_c:
+                st.metric("Error Rate", f"{ux_score['error_rate']:.1f}%")
+            with col_d:
+                st.metric("Total Size", f"{ux_score['total_size_mb']:.1f}MB")
+        
+        st.markdown("---")
+        
+        # Conversion Impact
+        st.subheader("📈 Conversion Rate Impact")
+        
+        conversion_impact = BusinessAnalyzer.estimate_conversion_impact(df, baseline_conversion)
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric(
+                "Baseline Conversion",
+                f"{conversion_impact['baseline_conversion_rate']:.2f}%"
+            )
+        
+        with col2:
+            delta = conversion_impact['estimated_conversion_rate'] - conversion_impact['baseline_conversion_rate']
+            st.metric(
+                "Estimated Conversion",
+                f"{conversion_impact['estimated_conversion_rate']:.2f}%",
+                delta=f"{delta:.2f}%",
+                delta_color="inverse"
+            )
+        
+        with col3:
+            st.metric(
+                "Abandonment Rate",
+                f"{conversion_impact['abandonment_rate']:.1f}%"
+            )
+        
+        if conversion_impact['conversion_loss_percentage'] > 0:
+            st.warning(f"⚠️ Performance issues may be reducing conversion by {conversion_impact['conversion_loss_percentage']:.1f}%")
+        else:
+            st.success("✅ Load time is optimal for conversion")
+        
+        st.markdown("---")
+        
+        # Revenue Impact
+        st.subheader("💵 Revenue Impact Estimate")
+        
+        revenue_impact = BusinessAnalyzer.estimate_revenue_impact(
+            df,
+            monthly_visitors=monthly_visitors,
+            average_order_value=avg_order_value,
+            baseline_conversion_rate=baseline_conversion
+        )
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("#### Current State")
+            st.metric("Monthly Revenue", f"${revenue_impact['estimated_monthly_revenue']:,.2f}")
+            st.metric("Annual Revenue", f"${revenue_impact['estimated_monthly_revenue'] * 12:,.2f}")
+        
+        with col2:
+            st.markdown("#### Potential Loss")
+            st.metric(
+                "Monthly Loss",
+                f"${revenue_impact['monthly_revenue_loss']:,.2f}",
+                delta=f"-${revenue_impact['monthly_revenue_loss']:,.2f}",
+                delta_color="inverse"
+            )
+            st.metric(
+                "Annual Loss",
+                f"${revenue_impact['annual_revenue_loss']:,.2f}",
+                delta=f"-${revenue_impact['annual_revenue_loss']:,.2f}",
+                delta_color="inverse"
+            )
+        
+        st.markdown("---")
+        
+        # Optimization Potential
+        st.subheader("🚀 Optimization Potential")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.metric(
+                "Potential Monthly Gain",
+                f"${revenue_impact['potential_monthly_gain']:,.2f}",
+                delta=f"+${revenue_impact['potential_monthly_gain']:,.2f}"
+            )
+        
+        with col2:
+            st.metric(
+                "Potential Annual Gain",
+                f"${revenue_impact['potential_annual_gain']:,.2f}",
+                delta=f"+${revenue_impact['potential_annual_gain']:,.2f}"
+            )
+        
+        if revenue_impact['potential_monthly_gain'] > 0:
+            st.success(f"💡 Reducing load time by 1 second could increase annual revenue by ${revenue_impact['potential_annual_gain']:,.2f}")
+        
+        st.markdown("---")
+        
+        # Industry Benchmarks
+        with st.expander("📊 Industry Benchmarks & Research"):
+            st.markdown("""
+            **Performance Impact on Business Metrics:**
+            
+            1. **Load Time Impact**
+               - 1 second delay = 7% reduction in conversions
+               - 100ms delay = 1% drop in sales (Amazon)
+               - 2 second delay = 87% bounce rate increase
+            
+            2. **Abandonment Rates by Load Time**
+               - 1 second: 7% abandon
+               - 2 seconds: 11% abandon
+               - 3 seconds: 16% abandon
+               - 5 seconds: 32% abandon
+               - 10 seconds: 53% abandon
+            
+            3. **Mobile Impact**
+               - 53% of mobile users abandon sites taking >3s to load
+               - Mobile conversion rates are 2x lower with 5s load time
+            
+            4. **Revenue Correlation**
+               - Every 100ms improvement = 1% revenue increase (Walmart)
+               - 0.1s improvement = 8% conversion increase (Mobify)
+            
+            **Sources:** Google, Amazon, Akamai, Kissmetrics research
+            """)

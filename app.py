@@ -107,6 +107,51 @@ def main():
             st.stop()
         
         if df is not None and not df.empty:
+            # Export section in sidebar
+            st.sidebar.markdown("---")
+            st.sidebar.header("📥 Export Reports")
+            
+            from exporters.report_generator import ReportGenerator
+            
+            # CSV Export
+            if st.sidebar.button("📄 Export CSV", use_container_width=True):
+                csv_content = ReportGenerator.generate_csv_report(df)
+                filename = ReportGenerator.create_download_filename('har_analysis', 'csv')
+                st.sidebar.download_button(
+                    label="⬇️ Download CSV",
+                    data=csv_content,
+                    file_name=filename,
+                    mime='text/csv',
+                    use_container_width=True
+                )
+            
+            # JSON Export
+            if st.sidebar.button("📋 Export JSON", use_container_width=True):
+                json_content = ReportGenerator.generate_json_report(df)
+                filename = ReportGenerator.create_download_filename('har_analysis', 'json')
+                st.sidebar.download_button(
+                    label="⬇️ Download JSON",
+                    data=json_content,
+                    file_name=filename,
+                    mime='application/json',
+                    use_container_width=True
+                )
+            
+            # Text Summary Export
+            if st.sidebar.button("📝 Export Summary", use_container_width=True):
+                summary_content = ReportGenerator.generate_summary_report(df)
+                filename = ReportGenerator.create_download_filename('har_summary', 'txt')
+                st.sidebar.download_button(
+                    label="⬇️ Download Summary",
+                    data=summary_content,
+                    file_name=filename,
+                    mime='text/plain',
+                    use_container_width=True
+                )
+            
+            st.sidebar.markdown("---")
+        
+        if df is not None and not df.empty:
             # Identify problematic APIs (cached)
             df_hash = hashlib.md5(str(df.shape).encode()).hexdigest()
             df = analyze_performance(df_hash, df)
@@ -149,7 +194,11 @@ def main():
                 "📊 Advanced Stats",
                 "💾 Caching Analysis",
                 "🔒 Security Analysis",
-                "📊 Performance Budget"
+                "📊 Performance Budget",
+                "📈 Waterfall",
+                "📊 Comparative Analysis",
+                "🔌 Connection Analysis",
+                "💰 Business Impact"
             ])
             
             with tabs[0]:
@@ -187,6 +236,18 @@ def main():
             
             with tabs[11]:
                 TabManager.render_performance_budget_tab(df)
+            
+            with tabs[12]:
+                TabManager.render_waterfall_tab(df)
+            
+            with tabs[13]:
+                TabManager.render_comparative_analysis_tab(df)
+            
+            with tabs[14]:
+                TabManager.render_connection_analysis_tab(df)
+            
+            with tabs[15]:
+                TabManager.render_business_impact_tab(df)
 
 
 if __name__ == "__main__":
