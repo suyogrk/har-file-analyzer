@@ -17,6 +17,7 @@ class PerformanceAnalyzer:
     def identify_problematic_apis(df: pd.DataFrame) -> pd.DataFrame:
         """
         Identify problematic APIs based on performance criteria.
+        Uses vectorized operations for optimal performance.
         
         Args:
             df: DataFrame with HAR entries
@@ -27,13 +28,43 @@ class PerformanceAnalyzer:
         if df.empty:
             return df
         
-        problems_list = []
+        # Create boolean masks for each issue type (vectorized)
+        slow_response = df['total_time'] > SLOW_RESPONSE_THRESHOLD_MS
+        high_wait = df['wait'] > HIGH_WAIT_TIME_THRESHOLD_MS
+        error_status = df['status'] >= 400
+        connection_delay = df['connect'] > CONNECTION_DELAY_THRESHOLD_MS
+        dns_delay = df['dns'] > DNS_DELAY_THRESHOLD_MS
         
-        for idx, row in df.iterrows():
-            issues = PerformanceAnalyzer._identify_issues(row)
-            problems_list.append(issues)
+        # Build problems list efficiently using list comprehension
+        def build_issues(row):
+            issues = []
+            if row['slow_response']:
+                issues.append('Slow Response')
+            if row['high_wait']:
+                issues.append('High Server Wait')
+            if row['error_status']:
+                issues.append('Error Response')
+            if row['connection_delay']:
+                issues.append('Connection Delay')
+            if row['dns_delay']:
+                issues.append('DNS Delay')
+            return ', '.join(issues) if issues else 'No Issues'
         
-        df['problems'] = problems_list
+        # Create temporary columns for boolean checks
+        df['slow_response'] = slow_response
+        df['high_wait'] = high_wait
+        df['error_status'] = error_status
+        df['connection_delay'] = connection_delay
+        df['dns_delay'] = dns_delay
+        
+        # Apply function only to build string (much faster than iterrows)
+        df['problems'] = df.apply(build_issues, axis=1)
+        
+        # Clean up temporary columns
+        df.drop(['slow_response', 'high_wait', 'error_status', 'connection_delay', 'dns_delay'], 
+                axis=1, inplace=True)
+        
+        # Mark problematic entries
         df['is_problematic'] = df['problems'] != 'No Issues'
         
         return df

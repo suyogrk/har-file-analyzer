@@ -1,11 +1,43 @@
 # app.py - Main Streamlit application
 
 import streamlit as st
+import hashlib
 from config import PAGE_CONFIG
 from parsers.har_parser import HARParser
 from analyzers.performance_analyzer import PerformanceAnalyzer
 from ui.metrics import MetricsDisplay
 from ui.tabs import TabManager
+from utils.validators import validate_file_size, validate_har_content
+
+
+@st.cache_data(show_spinner=False)
+def parse_har_file(file_content: str, file_hash: str):
+    """
+    Parse HAR file with caching based on file hash.
+    
+    Args:
+        file_content: Raw HAR file content
+        file_hash: Hash of file content for cache key
+        
+    Returns:
+        Tuple of (DataFrame or None, error message or None)
+    """
+    return HARParser.parse(file_content)
+
+
+@st.cache_data(show_spinner=False)
+def analyze_performance(df_hash: str, df):
+    """
+    Analyze performance with caching.
+    
+    Args:
+        df_hash: Hash for cache invalidation
+        df: DataFrame to analyze
+        
+    Returns:
+        DataFrame with analysis results
+    """
+    return PerformanceAnalyzer.identify_problematic_apis(df)
 
 
 def main():
@@ -30,15 +62,37 @@ def main():
     )
     
     if uploaded_file is not None:
+        # Validate file size
+        file_size = uploaded_file.size
+        is_valid, error = validate_file_size(file_size)
+        if not is_valid:
+            st.error(f"❌ {error}")
+            st.stop()
+        
         # Read and parse the HAR file
         har_content = uploaded_file.read().decode('utf-8')
         
+        # Validate content
+        is_valid, error = validate_har_content(har_content)
+        if not is_valid:
+            st.error(f"❌ {error}")
+            st.stop()
+        
+        # Generate hash for caching
+        file_hash = hashlib.md5(har_content.encode()).hexdigest()
+        
         with st.spinner('Parsing HAR file...'):
-            df = HARParser.parse(har_content)
+            df, error = parse_har_file(har_content, file_hash)
+        
+        # Handle parsing errors
+        if error:
+            st.error(f"❌ {error}")
+            st.stop()
         
         if df is not None and not df.empty:
-            # Identify problematic APIs
-            df = PerformanceAnalyzer.identify_problematic_apis(df)
+            # Identify problematic APIs (cached)
+            df_hash = hashlib.md5(str(df.shape).encode()).hexdigest()
+            df = analyze_performance(df_hash, df)
             
             # Main metrics
             st.header("📊 Overview Metrics")

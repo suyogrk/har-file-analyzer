@@ -19,17 +19,17 @@ class TabManager:
         
         with col1:
             fig_hist, key_hist = ChartFactory.create_response_time_histogram(df, key="overview_histogram")
-            st.plotly_chart(fig_hist, use_container_width=True, key=key_hist)
+            st.plotly_chart(fig_hist, width='stretch', key=key_hist)
             
             fig_status, key_status = ChartFactory.create_status_code_chart(df, key="overview_status")
-            st.plotly_chart(fig_status, use_container_width=True, key=key_status)
+            st.plotly_chart(fig_status, width='stretch', key=key_status)
         
         with col2:
             fig_timing, key_timing = ChartFactory.create_timing_breakdown_chart(df, key="overview_timing")
-            st.plotly_chart(fig_timing, use_container_width=True, key=key_timing)
+            st.plotly_chart(fig_timing, width='stretch', key=key_timing)
             
             fig_endpoints, key_endpoints = ChartFactory.create_slowest_endpoints_chart(df, key="overview_endpoints")
-            st.plotly_chart(fig_endpoints, use_container_width=True, key=key_endpoints)
+            st.plotly_chart(fig_endpoints, width='stretch', key=key_endpoints)
     
     @staticmethod
     def render_requests_tab(df: pd.DataFrame):
@@ -54,7 +54,7 @@ class TabManager:
         display_columns = ['method', 'endpoint', 'status', 'total_time', 'problems']
         st.dataframe(
             filtered_df[display_columns],
-            use_container_width=True,
+            width='stretch',
             hide_index=True
         )
     
@@ -73,7 +73,7 @@ class TabManager:
             display_columns = ['method', 'endpoint', 'status', 'total_time', 'problems']
             st.dataframe(
                 problematic_df[display_columns],
-                use_container_width=True,
+                width='stretch',
                 hide_index=True
             )
     
@@ -88,7 +88,7 @@ class TabManager:
         
         # Show timing breakdown chart with unique key
         fig_timing, key_timing = ChartFactory.create_timing_breakdown_chart(df, key="timing_analysis_breakdown")
-        st.plotly_chart(fig_timing, use_container_width=True, key=key_timing)
+        st.plotly_chart(fig_timing, width='stretch', key=key_timing)
         
         # Show average timing by endpoint
         st.subheader("Average Timing by Endpoint")
@@ -96,7 +96,7 @@ class TabManager:
             ['blocked', 'dns', 'connect', 'send', 'wait', 'receive', 'ssl']
         ].mean().round(2)
         
-        st.dataframe(endpoint_timing, use_container_width=True)
+        st.dataframe(endpoint_timing, width='stretch')
     
     @staticmethod
     def render_endpoint_tab(df: pd.DataFrame):
@@ -107,7 +107,7 @@ class TabManager:
         
         st.dataframe(
             endpoint_stats,
-            use_container_width=True,
+            width='stretch',
             hide_index=True
         )
         
@@ -117,4 +117,4 @@ class TabManager:
             limit=20, 
             key="endpoint_tab_slowest"
         )
-        st.plotly_chart(fig_endpoints, use_container_width=True, key=key_endpoints)
+        st.plotly_chart(fig_endpoints, width='stretch', key=key_endpoints)

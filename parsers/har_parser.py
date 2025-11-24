@@ -3,10 +3,13 @@
 import json
 import pandas as pd
 from urllib.parse import urlparse
-from typing import List, Optional
-import streamlit as st
+from typing import List, Optional, Tuple
+from utils.logger import get_logger
 
 from models.har_entry import HAREntry, HARTiming
+
+# Initialize logger
+logger = get_logger(__name__)
 
 
 def safe_time(value: float | None) -> float:
@@ -15,7 +18,7 @@ def safe_time(value: float | None) -> float:
         if value is None or not isinstance(value, (int, float)):
             return 0.0
         return max(value, 0.0)
-    except:
+    except (TypeError, ValueError):
         return 0.0
 
 
@@ -23,7 +26,7 @@ class HARParser:
     """Parser for HAR (HTTP Archive) files."""
     
     @staticmethod
-    def parse(har_content: str) -> Optional[pd.DataFrame]:
+    def parse(har_content: str) -> Tuple[Optional[pd.DataFrame], Optional[str]]:
         """
         Parse HAR file content and return DataFrame.
         
@@ -31,11 +34,15 @@ class HARParser:
             har_content: Raw HAR file content as string
             
         Returns:
-            DataFrame with parsed entries or None if parsing fails
+            Tuple of (DataFrame with parsed entries or None, error message or None)
         """
         try:
             har_data = json.loads(har_content)
             entries = har_data.get('log', {}).get('entries', [])
+            
+            if not entries:
+                logger.warning("No entries found in HAR file")
+                return None, "No entries found in HAR file"
             
             parsed_entries = []
             for entry in entries:
@@ -44,17 +51,24 @@ class HARParser:
                     parsed_entries.append(har_entry.to_dict())
             
             if not parsed_entries:
-                st.warning("No entries found in HAR file")
-                return None
-                
-            return pd.DataFrame(parsed_entries)
+                logger.warning("No valid entries could be parsed from HAR file")
+                return None, "No valid entries could be parsed from HAR file"
+            
+            logger.info(f"Successfully parsed {len(parsed_entries)} entries from HAR file")
+            return pd.DataFrame(parsed_entries), None
             
         except json.JSONDecodeError as e:
-            st.error(f"Invalid JSON in HAR file: {str(e)}")
-            return None
+            error_msg = f"Invalid JSON in HAR file: {str(e)}"
+            logger.error(error_msg)
+            return None, error_msg
+        except KeyError as e:
+            error_msg = f"Missing required field in HAR file: {str(e)}"
+            logger.error(error_msg)
+            return None, error_msg
         except Exception as e:
-            st.error(f"Error parsing HAR file: {str(e)}")
-            return None
+            error_msg = f"Error parsing HAR file: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            return None, error_msg
     
     @staticmethod
     def _parse_entry(entry: dict) -> Optional[HAREntry]:
@@ -97,5 +111,5 @@ class HARParser:
             return har_entry
             
         except Exception as e:
-            st.warning(f"Failed to parse entry: {str(e)}")
+            logger.debug(f"Failed to parse entry: {str(e)}")
             return None
