@@ -89,7 +89,9 @@ class CacheAnalyzer:
                 'cacheable_requests': 0,
                 'cacheable_percentage': 0,
                 'potential_bandwidth_savings': 0,
-                'recommendations': []
+                'potential_savings_kb': 0,
+                'recommendations': [],
+                'cacheable_breakdown': []
             }
         
         cache_df = CacheAnalyzer.parse_cache_headers(df)
@@ -222,13 +224,20 @@ class CacheAnalyzer:
         """
         cache_df = CacheAnalyzer.parse_cache_headers(df)
         
-        cacheable_df = cache_df[cache_df['is_cacheable']]
+        if not cache_df.empty:
+            cacheable_df = cache_df[cache_df['is_cacheable']]
+        else:
+            cacheable_df = pd.DataFrame()
         
         if cacheable_df.empty:
             return {
                 'bandwidth_saved': 0,
+                'bandwidth_saved_kb': 0,
+                'bandwidth_saved_mb': 0,
                 'time_saved': 0,
-                'requests_saved': 0
+                'time_saved_seconds': 0,
+                'requests_saved': 0,
+                'cache_hit_rate': cache_hit_rate * 100
             }
         
         # Calculate savings

@@ -19,17 +19,17 @@ class TabManager:
         
         with col1:
             fig_hist, key_hist = ChartFactory.create_response_time_histogram(df, key="overview_histogram")
-            st.plotly_chart(fig_hist, width='stretch', key=key_hist)
+            st.plotly_chart(fig_hist, use_container_width=True, key=key_hist)
             
             fig_status, key_status = ChartFactory.create_status_code_chart(df, key="overview_status")
-            st.plotly_chart(fig_status, width='stretch', key=key_status)
+            st.plotly_chart(fig_status, use_container_width=True, key=key_status)
         
         with col2:
             fig_timing, key_timing = ChartFactory.create_timing_breakdown_chart(df, key="overview_timing")
-            st.plotly_chart(fig_timing, width='stretch', key=key_timing)
+            st.plotly_chart(fig_timing, use_container_width=True, key=key_timing)
             
             fig_endpoints, key_endpoints = ChartFactory.create_slowest_endpoints_chart(df, key="overview_endpoints")
-            st.plotly_chart(fig_endpoints, width='stretch', key=key_endpoints)
+            st.plotly_chart(fig_endpoints, use_container_width=True, key=key_endpoints)
     
     @staticmethod
     def render_requests_tab(df: pd.DataFrame):
@@ -89,7 +89,7 @@ class TabManager:
         
         # Show timing breakdown chart with unique key
         fig_timing, key_timing = ChartFactory.create_timing_breakdown_chart(df, key="timing_analysis_breakdown")
-        st.plotly_chart(fig_timing, width='stretch', key=key_timing)
+        st.plotly_chart(fig_timing, use_container_width=True, key=key_timing)
         
         # Show average timing by endpoint
         st.subheader("Average Timing by Endpoint")
@@ -118,7 +118,7 @@ class TabManager:
             limit=20, 
             key="endpoint_tab_slowest"
         )
-        st.plotly_chart(fig_endpoints, width='stretch', key=key_endpoints)    
+        st.plotly_chart(fig_endpoints, use_container_width=True, key=key_endpoints)    
     @staticmethod
     def render_domain_analysis_tab(df: pd.DataFrame):
         """Render the Domain Analysis tab."""
@@ -150,7 +150,7 @@ class TabManager:
         # Domain performance chart
         fig_domain, key_domain = ChartFactory.create_domain_performance_chart(domain_stats, key="domain_analysis")
         if fig_domain:
-            st.plotly_chart(fig_domain, width='stretch', key=key_domain)
+            st.plotly_chart(fig_domain, use_container_width=True, key=key_domain)
         
         # CDN detection
         st.subheader("CDN Usage")
@@ -249,12 +249,12 @@ class TabManager:
         with col1:
             fig_resource, key_resource = ChartFactory.create_resource_size_chart(resource_stats, key="resource_size")
             if fig_resource:
-                st.plotly_chart(fig_resource, width='stretch', key=key_resource)
+                st.plotly_chart(fig_resource, use_container_width=True, key=key_resource)
         
         with col2:
             fig_scatter, key_scatter = ChartFactory.create_size_vs_time_scatter(df, key="size_vs_time")
             if fig_scatter:
-                st.plotly_chart(fig_scatter, width='stretch', key=key_scatter)
+                st.plotly_chart(fig_scatter, use_container_width=True, key=key_scatter)
         
         st.markdown("---")
         
@@ -309,7 +309,7 @@ class TabManager:
         # Percentile chart
         fig_percentile, key_percentile = ChartFactory.create_percentile_chart(df, key="percentile_chart")
         if fig_percentile:
-            st.plotly_chart(fig_percentile, width='stretch', key=key_percentile)
+            st.plotly_chart(fig_percentile, use_container_width=True, key=key_percentile)
         
         st.markdown("---")
         

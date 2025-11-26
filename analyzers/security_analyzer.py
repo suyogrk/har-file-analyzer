@@ -189,7 +189,9 @@ class SecurityAnalyzer:
         }
         
         for library, pattern in library_patterns.items():
-            matches = df[df['url'].str.contains(pattern, case=False, na=False, regex=True)]
+            # Use str.contains without capture groups for filtering
+            filter_pattern = pattern.replace('([0-9.]+)', '[0-9.]+')
+            matches = df[df['url'].str.contains(filter_pattern, case=False, na=False, regex=True)]
             
             if not matches.empty:
                 # Extract version (simplified - would need more robust parsing in production)

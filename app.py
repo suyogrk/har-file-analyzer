@@ -1,5 +1,10 @@
 # app.py - Main Streamlit application
 
+import warnings
+# Suppress known Streamlit/Plotly deprecation warnings that don't affect functionality
+warnings.filterwarnings('ignore', message='.*keyword arguments have been deprecated.*')
+warnings.filterwarnings('ignore', message='.*This pattern is interpreted as a regular expression.*')
+
 import streamlit as st
 import hashlib
 from config import PAGE_CONFIG
