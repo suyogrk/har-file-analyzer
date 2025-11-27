@@ -15,6 +15,7 @@ from ui.metrics import MetricsDisplay
 from ui.tabs import TabManager
 from utils.validators import validate_file_size, validate_har_content
 from visualizations.charts import ChartFactory
+from exceptions import HARParseError, HARValidationError, HARFileError
 
 
 @st.cache_data(show_spinner=False)
@@ -62,6 +63,69 @@ def calculate_performance_score(df_hash: str, df):
     return PerformanceBenchmarking.calculate_performance_score(df)
 
 
+def show_error_with_solutions(error_message: str, solutions: list) -> None:
+    """
+    Display error message with actionable solutions.
+    
+    Args:
+        error_message: The error message to display
+        solutions: List of solutions to try
+    """
+    st.error(f"❌ {error_message}")
+    
+    with st.expander("💡 Possible Solutions"):
+        for i, solution in enumerate(solutions, 1):
+            st.write(f"{i}. {solution}")
+
+
+def show_file_size_error(file_size: int, max_size: int) -> None:
+    """
+    Display file size error with specific guidance.
+    
+    Args:
+        file_size: The actual file size
+        max_size: The maximum allowed file size
+    """
+    size_mb = file_size / (1024 * 1024)
+    max_mb = max_size / (1024 * 1024)
+    
+    error_message = f"File too large ({size_mb:.1f} MB). Maximum size is {max_mb:.0f} MB."
+    
+    solutions = [
+        "Try filtering the HAR file to include only the network requests you need to analyze",
+        "Generate a new HAR file with a shorter recording period",
+        "Use browser DevTools to filter out unnecessary requests before exporting",
+        "Consider using a HAR file splitter tool to divide large files into smaller chunks"
+    ]
+    
+    show_error_with_solutions(error_message, solutions)
+
+
+def show_parsing_error(error_message: str) -> None:
+    """
+    Display parsing error with specific guidance.
+    
+    Args:
+        error_message: The parsing error message
+    """
+    solutions = [
+        "Verify the HAR file was exported correctly from browser DevTools",
+        "Try opening the HAR file in a text editor to check if it's valid JSON",
+        "Generate a new HAR file with a fresh browser session",
+        "Check if the HAR file was corrupted during transfer or storage"
+    ]
+    
+    # Add specific solutions based on error type
+    if "JSON" in error_message:
+        solutions.insert(0, "The HAR file appears to have invalid JSON format")
+    elif "entries" in error_message:
+        solutions.insert(0, "The HAR file doesn't contain any network request entries")
+    elif "Missing" in error_message:
+        solutions.insert(0, "The HAR file is missing required fields")
+    
+    show_error_with_solutions(error_message, solutions)
+
+
 def main():
     """Main application entry point."""
     # Configure page
@@ -88,7 +152,7 @@ def main():
         file_size = uploaded_file.size
         is_valid, error = validate_file_size(file_size)
         if not is_valid:
-            st.error(f"❌ {error}")
+            show_file_size_error(file_size, 50 * 1024 * 1024)  # 50MB max size
             st.stop()
         
         # Read and parse the HAR file
@@ -97,7 +161,13 @@ def main():
         # Validate content
         is_valid, error = validate_har_content(har_content)
         if not is_valid:
-            st.error(f"❌ {error}")
+            solutions = [
+                "Ensure you're uploading a valid HAR file (not another file type)",
+                "Check that the file wasn't corrupted during download or transfer",
+                "Try exporting the HAR file again from your browser's DevTools",
+                "Open the file in a text editor to verify it starts with '{' and contains valid JSON"
+            ]
+            show_error_with_solutions(error, solutions)
             st.stop()
         
         # Generate hash for caching
@@ -108,7 +178,7 @@ def main():
         
         # Handle parsing errors
         if error:
-            st.error(f"❌ {error}")
+            show_parsing_error(error)
             st.stop()
         
         if df is not None and not df.empty:

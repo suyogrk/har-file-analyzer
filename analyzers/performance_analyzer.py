@@ -1,7 +1,7 @@
 # analyzers/performance_analyzer.py - Performance analysis
 
 import pandas as pd
-from typing import List, Dict
+from typing import List, Dict, Any, Union, Optional
 from config import (
     SLOW_RESPONSE_THRESHOLD_MS,
     HIGH_WAIT_TIME_THRESHOLD_MS,
@@ -17,7 +17,7 @@ class PerformanceAnalyzer:
     def identify_problematic_apis(df: pd.DataFrame) -> pd.DataFrame:
         """
         Identify problematic APIs based on performance criteria.
-        Uses vectorized operations for optimal performance.
+        Uses fully vectorized operations for optimal performance.
         
         Args:
             df: DataFrame with HAR entries
@@ -35,36 +35,40 @@ class PerformanceAnalyzer:
         connection_delay = df['connect'] > CONNECTION_DELAY_THRESHOLD_MS
         dns_delay = df['dns'] > DNS_DELAY_THRESHOLD_MS
         
-        # Build problems list efficiently using list comprehension
-        def build_issues(row):
-            issues = []
-            if row['slow_response']:
-                issues.append('Slow Response')
-            if row['high_wait']:
-                issues.append('High Server Wait')
-            if row['error_status']:
-                issues.append('Error Response')
-            if row['connection_delay']:
-                issues.append('Connection Delay')
-            if row['dns_delay']:
-                issues.append('DNS Delay')
-            return ', '.join(issues) if issues else 'No Issues'
+        # Create a copy to avoid SettingWithCopyWarning
+        df = df.copy()
         
-        # Create temporary columns for boolean checks
-        df['slow_response'] = slow_response
-        df['high_wait'] = high_wait
-        df['error_status'] = error_status
-        df['connection_delay'] = connection_delay
-        df['dns_delay'] = dns_delay
+        # Use vectorized string operations to build problems list
+        # This is much faster than using apply with a function
+        problems = pd.Series(index=df.index, dtype=str)
         
-        # Apply function only to build string (much faster than iterrows)
-        df['problems'] = df.apply(build_issues, axis=1)
+        # Initialize with 'No Issues'
+        problems[:] = 'No Issues'
         
-        # Clean up temporary columns
-        df.drop(['slow_response', 'high_wait', 'error_status', 'connection_delay', 'dns_delay'], 
-                axis=1, inplace=True)
+        # Add issues using vectorized operations
+        # Each condition updates only the rows that match
+        mask = slow_response
+        problems.loc[mask] = problems.loc[mask] + ', Slow Response'
         
-        # Mark problematic entries
+        mask = high_wait
+        problems.loc[mask] = problems.loc[mask] + ', High Server Wait'
+        
+        mask = error_status
+        problems.loc[mask] = problems.loc[mask] + ', Error Response'
+        
+        mask = connection_delay
+        problems.loc[mask] = problems.loc[mask] + ', Connection Delay'
+        
+        mask = dns_delay
+        problems.loc[mask] = problems.loc[mask] + ', DNS Delay'
+        
+        # Clean up the leading ', ' for entries with issues
+        problems = problems.str.replace('^No Issues, ', '', regex=True)
+        
+        # Add the problems column to the DataFrame
+        df['problems'] = problems
+        
+        # Mark problematic entries (vectorized)
         df['is_problematic'] = df['problems'] != 'No Issues'
         
         return df
@@ -97,7 +101,7 @@ class PerformanceAnalyzer:
         return ', '.join(issues) if issues else 'No Issues'
     
     @staticmethod
-    def get_statistics(df: pd.DataFrame) -> Dict:
+    def get_statistics(df: pd.DataFrame) -> Dict[str, Union[int, float]]:
         """Get performance statistics from the data."""
         return {
             'total_requests': len(df),

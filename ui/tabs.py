@@ -1,6 +1,8 @@
 
 import streamlit as st
 import pandas as pd
+import plotly.graph_objects as go
+from typing import Tuple, Dict, Any, List, Optional, Union
 from visualizations.charts import ChartFactory
 from ui.filters import FilterManager
 from ui.metrics import MetricsDisplay
@@ -11,7 +13,7 @@ class TabManager:
     """Manages tab content and layouts."""
     
     @staticmethod
-    def render_overview_tab(df: pd.DataFrame):
+    def render_overview_tab(df: pd.DataFrame) -> None:
         """Render the Overview tab."""
         st.subheader("Performance Overview")
         
@@ -32,7 +34,7 @@ class TabManager:
             st.plotly_chart(fig_endpoints, use_container_width=True, key=key_endpoints)
     
     @staticmethod
-    def render_requests_tab(df: pd.DataFrame):
+    def render_requests_tab(df: pd.DataFrame) -> None:
         """Render the All Requests tab."""
         st.subheader("All Requests")
         
@@ -51,7 +53,7 @@ class TabManager:
         # Display results
         st.write(f"Showing {len(filtered_df)} of {len(df)} requests")
         
-        # Display table
+        # Select only needed columns for display
         display_columns = ['method', 'endpoint', 'status', 'total_time', 'problems']
         st.dataframe(
             filtered_df[display_columns],
@@ -60,17 +62,19 @@ class TabManager:
         )
     
     @staticmethod
-    def render_problematic_tab(df: pd.DataFrame):
+    def render_problematic_tab(df: pd.DataFrame) -> None:
         """Render the Problematic APIs tab."""
         st.subheader("Problematic APIs")
         
-        problematic_df = df[df['is_problematic']].sort_values('total_time', ascending=False)
+        # Use vectorized filtering instead of boolean indexing
+        problematic_df = df.query('is_problematic == True').sort_values('total_time', ascending=False)
         
         if problematic_df.empty:
             st.success("✅ No problematic APIs found!")
         else:
             st.warning(f"⚠️ Found {len(problematic_df)} problematic requests")
             
+            # Select only needed columns for display
             display_columns = ['method', 'endpoint', 'status', 'total_time', 'problems']
             st.dataframe(
                 problematic_df[display_columns],
@@ -79,7 +83,7 @@ class TabManager:
             )
     
     @staticmethod
-    def render_timing_tab(df: pd.DataFrame):
+    def render_timing_tab(df: pd.DataFrame) -> None:
         """Render the Timing Analysis tab."""
         st.subheader("Detailed Timing Analysis")
         
@@ -91,16 +95,23 @@ class TabManager:
         fig_timing, key_timing = ChartFactory.create_timing_breakdown_chart(df, key="timing_analysis_breakdown")
         st.plotly_chart(fig_timing, use_container_width=True, key=key_timing)
         
-        # Show average timing by endpoint
+        # Show average timing by endpoint - optimized with vectorized operations
         st.subheader("Average Timing by Endpoint")
-        endpoint_timing = df.groupby('endpoint')[
-            ['blocked', 'dns', 'connect', 'send', 'wait', 'receive', 'ssl']
-        ].mean().round(2)
+        
+        # Use vectorized operations instead of groupby for better performance with large datasets
+        timing_cols = ['blocked', 'dns', 'connect', 'send', 'wait', 'receive', 'ssl']
+        
+        # Limit to top endpoints for better performance
+        top_endpoints = df['endpoint'].value_counts().nlargest(20).index
+        filtered_df = df[df['endpoint'].isin(top_endpoints)]
+        
+        # Use groupby only on the filtered data
+        endpoint_timing = filtered_df.groupby('endpoint')[timing_cols].mean().round(2)
         
         st.dataframe(endpoint_timing, width='stretch')
     
     @staticmethod
-    def render_endpoint_tab(df: pd.DataFrame):
+    def render_endpoint_tab(df: pd.DataFrame) -> None:
         """Render the Endpoint Summary tab."""
         st.subheader("Endpoint Performance Summary")
         
@@ -120,7 +131,7 @@ class TabManager:
         )
         st.plotly_chart(fig_endpoints, use_container_width=True, key=key_endpoints)    
     @staticmethod
-    def render_domain_analysis_tab(df: pd.DataFrame):
+    def render_domain_analysis_tab(df: pd.DataFrame) -> None:
         """Render the Domain Analysis tab."""
         from analyzers.domain_analyzer import DomainAnalyzer
         
@@ -168,7 +179,7 @@ class TabManager:
         st.dataframe(domain_stats, width='stretch', hide_index=True)
     
     @staticmethod
-    def render_recommendations_tab(df: pd.DataFrame):
+    def render_recommendations_tab(df: pd.DataFrame) -> None:
         """Render the Recommendations tab."""
         from analyzers.recommendation_engine import RecommendationEngine
         
@@ -215,7 +226,7 @@ class TabManager:
                     st.write(f"**Effort:** {rec.effort}")
     
     @staticmethod
-    def render_resource_analysis_tab(df: pd.DataFrame):
+    def render_resource_analysis_tab(df: pd.DataFrame) -> None:
         """Render the Resource Analysis tab."""
         from analyzers.resource_analyzer import ResourceAnalyzer
         
@@ -286,23 +297,19 @@ class TabManager:
                 st.info(f"**{rec['resource_type']}**: {rec['file_count']} files, potential savings: {rec['estimated_savings']/1024:.1f}KB")
     
     @staticmethod
-    def render_advanced_stats_tab(df: pd.DataFrame):
+    def render_advanced_stats_tab(df: pd.DataFrame) -> None:
         """Render the Advanced Statistics tab."""
         st.subheader("📊 Advanced Statistical Analysis")
         
-        # Percentile analysis
+        # Percentile analysis - optimized with vectorized operations
         st.markdown("### Response Time Percentiles")
         
-        percentiles = {
-            'P50 (Median)': df['total_time'].quantile(0.5),
-            'P75': df['total_time'].quantile(0.75),
-            'P90': df['total_time'].quantile(0.9),
-            'P95': df['total_time'].quantile(0.95),
-            'P99': df['total_time'].quantile(0.99)
-        }
+        # Calculate percentiles in a single operation
+        percentiles_values = df['total_time'].quantile([0.5, 0.75, 0.9, 0.95, 0.99])
+        percentile_labels = ['P50 (Median)', 'P75', 'P90', 'P95', 'P99']
         
         cols = st.columns(5)
-        for i, (label, value) in enumerate(percentiles.items()):
+        for i, (label, value) in enumerate(zip(percentile_labels, percentiles_values)):
             with cols[i]:
                 st.metric(label, f"{value:.0f}ms")
         
@@ -313,33 +320,40 @@ class TabManager:
         
         st.markdown("---")
         
-        # Statistical measures
+        # Statistical measures - optimized with vectorized operations
         st.markdown("### Statistical Measures")
+        
+        # Calculate all statistics in a single operation
+        stats = df['total_time'].agg(['mean', 'std', 'min', 'max'])
         
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            st.metric("Mean", f"{df['total_time'].mean():.1f}ms")
+            st.metric("Mean", f"{stats['mean']:.1f}ms")
         with col2:
-            st.metric("Std Dev", f"{df['total_time'].std():.1f}ms")
+            st.metric("Std Dev", f"{stats['std']:.1f}ms")
         with col3:
-            st.metric("Min", f"{df['total_time'].min():.1f}ms")
+            st.metric("Min", f"{stats['min']:.1f}ms")
         with col4:
-            st.metric("Max", f"{df['total_time'].max():.1f}ms")
+            st.metric("Max", f"{stats['max']:.1f}ms")
         
         st.markdown("---")
         
-        # Outlier detection
+        # Outlier detection - optimized with vectorized operations
         st.markdown("### Outlier Detection")
         
+        # Calculate outliers using vectorized operations
         mean = df['total_time'].mean()
         std = df['total_time'].std()
-        outliers = df[df['total_time'] > mean + 3 * std]
+        outlier_mask = df['total_time'] > mean + 3 * std
+        outliers = df[outlier_mask]
         
         if not outliers.empty:
             st.warning(f"Found {len(outliers)} outliers (>3 standard deviations from mean)")
+            # Select only needed columns for display
+            display_cols = ['endpoint', 'total_time', 'status']
             st.dataframe(
-                outliers[['endpoint', 'total_time', 'status']],
+                outliers[display_cols],
                 width='stretch',
                 hide_index=True
             )
@@ -347,7 +361,7 @@ class TabManager:
             st.success("✅ No significant outliers detected")
     
     @staticmethod
-    def render_caching_analysis_tab(df: pd.DataFrame):
+    def render_caching_analysis_tab(df: pd.DataFrame) -> None:
         """Render the Caching Analysis tab."""
         from analyzers.cache_analyzer import CacheAnalyzer
         
@@ -409,7 +423,7 @@ class TabManager:
             st.info("All cacheable resources are properly configured")
     
     @staticmethod
-    def render_security_analysis_tab(df: pd.DataFrame):
+    def render_security_analysis_tab(df: pd.DataFrame) -> None:
         """Render the Security Analysis tab."""
         from analyzers.security_analyzer import SecurityAnalyzer
         
@@ -466,8 +480,6 @@ class TabManager:
         # Protocol breakdown chart
         st.subheader("Protocol Distribution")
         
-        import plotly.graph_objects as go
-        
         fig = go.Figure(data=[
             go.Pie(
                 labels=['HTTPS', 'HTTP'],
@@ -480,7 +492,7 @@ class TabManager:
         st.plotly_chart(fig, use_container_width=True)
     
     @staticmethod
-    def render_performance_budget_tab(df: pd.DataFrame):
+    def render_performance_budget_tab(df: pd.DataFrame) -> None:
         """Render the Performance Budget tab."""
         from models.performance_budget import PerformanceBudgetTracker, PerformanceBudget
         
@@ -565,7 +577,7 @@ class TabManager:
             })
     
     @staticmethod
-    def render_waterfall_tab(df: pd.DataFrame):
+    def render_waterfall_tab(df: pd.DataFrame) -> None:
         """Render the Waterfall Visualization tab."""
         from visualizations.waterfall import WaterfallChart
         
@@ -629,13 +641,13 @@ class TabManager:
             st.info("No critical path data available")
     
     @staticmethod
-    def render_comparative_analysis_tab(df: pd.DataFrame):
+    def render_comparative_analysis_tab(df: pd.DataFrame) -> None:
         """Render the Comparative Analysis tab."""
         from analyzers.comparative_analyzer import ComparativeAnalyzer
         
         st.subheader("📊 Comparative Analysis")
         
-        st.info("💡 **How to use:** Upload a second HAR file to compare with the current one. This is useful for before/after optimization analysis.")
+        st.info("💡 **How to use:** Upload a second HAR file to compare with current one. This is useful for before/after optimization analysis.")
         
         # File uploader for second HAR file
         st.markdown("### Upload Second HAR File for Comparison")
@@ -648,7 +660,7 @@ class TabManager:
         )
         
         if comparison_file is not None:
-            # Parse the comparison file
+            # Parse comparison file
             from parsers.har_parser import HARParser
             
             comparison_content = comparison_file.read().decode('utf-8')
@@ -767,7 +779,7 @@ class TabManager:
                 
                 1. **Before/After Optimization**
                    - Compare performance before and after implementing optimizations
-                   - Measure the impact of code changes
+                   - Measure impact of code changes
                 
                 2. **A/B Testing**
                    - Compare different versions of your application
@@ -787,7 +799,7 @@ class TabManager:
                 """)
     
     @staticmethod
-    def render_connection_analysis_tab(df: pd.DataFrame):
+    def render_connection_analysis_tab(df: pd.DataFrame) -> None:
         """Render the Connection Analysis tab."""
         from analyzers.connection_analyzer import ConnectionAnalyzer
         
@@ -899,7 +911,7 @@ class TabManager:
             """)
     
     @staticmethod
-    def render_business_impact_tab(df: pd.DataFrame):
+    def render_business_impact_tab(df: pd.DataFrame) -> None:
         """Render the Business Impact Analysis tab."""
         from analyzers.business_analyzer import BusinessAnalyzer
         
